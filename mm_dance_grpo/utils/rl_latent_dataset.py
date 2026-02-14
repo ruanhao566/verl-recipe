@@ -19,8 +19,43 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+from torch.utils.data import SequentialSampler
 
 logger = logging.getLogger(__name__)
+
+
+def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train=True, max_samples: int = -1):
+    from recipe.mm_dance_grpo.patches.rl_dataset import MMDataset
+    dataset_cls = MMDataset
+    print(f"Using dataset class: {dataset_cls.__name__}")
+
+    # Instantiate the dataset using the determined dataset class
+    dataset = dataset_cls(
+        data_files=data_paths,
+        tokenizer=tokenizer,
+        processor=processor,
+        config=data_config,
+        max_samples=max_samples,
+    )
+
+    return dataset
+
+
+def create_rl_sampler(data_config, dataset):
+    # torch.utils.data.RandomSampler could not recover properly
+    from torchdata.stateful_dataloader.sampler import RandomSampler
+
+    if data_config.shuffle:
+        train_dataloader_generator = torch.Generator()
+        seed = data_config.get("seed")
+        if seed is not None:
+            train_dataloader_generator.manual_seed(seed)
+        sampler = RandomSampler(data_source=dataset, generator=train_dataloader_generator)
+    else:
+        # If shuffling is disabled, use a sequential sampler to iterate through the dataset in order.
+        sampler = SequentialSampler(data_source=dataset)
+
+    return sampler
 
 
 def collate_fn(data_list: list[dict]) -> dict:
@@ -48,7 +83,7 @@ def collate_fn(data_list: list[dict]) -> dict:
     for key, val in tensors.items():
         try:
             tensors[key] = torch.stack(val, dim=0)
-        except:
+        except Exception:
             tensors[key] = val
 
     for key, val in non_tensors.items():

@@ -36,13 +36,13 @@ def datasets_json_to_parquet(json_path):
         train_dataset = train_dataset.select(range(min(num_samples, len(train_dataset))))
         test_dataset = test_dataset.select(range(min(num_samples, len(test_dataset))))
 
-    def make_map_fn_to_zj2(split):
+    def make_map_fn_to_zj2(split, json_file):
         def process_fn(example, idx):
             problem = example.pop("prompt")
             prompt = problem
 
             data = {
-                "data_source": data_json,
+                "data_source": json_file,
                 "prompt": [
                     {
                         "role": "user",
@@ -61,8 +61,8 @@ def datasets_json_to_parquet(json_path):
 
         return process_fn
 
-    train_dataset = train_dataset.map(function=make_map_fn_to_zj2("train"), with_indices=True)
-    test_dataset = test_dataset.map(function=make_map_fn_to_zj2("test"), with_indices=True)
+    train_dataset = train_dataset.map(function=make_map_fn_to_zj2("train", json_path), with_indices=True)
+    test_dataset = test_dataset.map(function=make_map_fn_to_zj2("test", json_path), with_indices=True)
 
     local_dir = args.local_dir
     train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))

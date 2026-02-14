@@ -1,6 +1,6 @@
 ray stop --force
 
-source /usr/local/Ascend/ascend-toolkit/s et_env.sh
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
 
 export CUSTOM_TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -95,8 +95,7 @@ python3 -m recipe.mm_dance_grpo.main_dance \
     trainer.nnodes=1 \
     trainer.save_freq=-1 \
     trainer.test_freq=-1 \
-    trainer.total_epochs=1 \
-    trainer.total_training_steps=100 \
+    trainer.total_epochs=2 \
+    trainer.total_training_steps=200 \
     trainer.device=npu \
     2>&1 | tee logs/train_${logfile}.log
-分析脚本

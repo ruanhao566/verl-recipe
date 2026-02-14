@@ -106,6 +106,8 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         import mindspeed.args_utils as args_utils
         with open(f'{self.config.actor.model_args_path}/mindspeed_args.pkl', 'rb') as f:
             args_utils._MINDSPEED_ARGS = pickle.load(f)
+        # TODO Mindspeed patch init
+        import mindspeed.megatron_adaptor
         with open(f'{self.config.actor.model_args_path}/mm_args.pkl', 'rb') as f:
             args = pickle.load(f)
         set_args(args)
@@ -193,7 +195,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         from mindspeed_mm.models.text_encoder import Tokenizer
         from mindspeed_mm.training import no_wd_decay_cond, scale_lr_cond
         from mindspeed.core.distributed.torch_fully_sharded_data_parallel.training import get_model
-        from recipe.mm_dance_grpo.patchs.sora_model import MMSoRAModel
+        from recipe.mm_dance_grpo.patches.sora_model import MMSoRAModel
         from recipe.mm_dance_grpo.rollout import HFRollout
         from recipe.mm_dance_grpo.actor import DataParallelPPOActor
 
@@ -209,7 +211,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         self.actor_module_fsdp = get_model(mm_model_provider, ModelType.encoder_or_decoder)[0]
         # dcp加载
         self.load_checkpoint()
-        torch.distributed.fsdp.register_fsdp_forward_method(self.actor_module_fsdp.module, "predictor_forward")
+        torch.distributed.fsdp.register_fsdp_forward_method(self.actor_module_fsdp.module, "forward")
         args = get_args()
         # 初始化actor模型的优化器
         from megatron.core.optimizer import get_megatron_optimizer
@@ -252,13 +254,13 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                 base, _ = os.path.splitext(images_path)
                 png_path = base + '.png'
                 image.save(png_path, format="PNG")
-                hps_score = self.reward_model.reward([png_path], [prompt])
+                hps_score = self.reward_module.reward([png_path], [prompt])
                 if hps_score.ndim == 2:
                     hps_score = hps_score[:, 0]
                 hps_score = reward_coeff * torch.tensor(hps_score, dtype=torch.float32).to('npu')
                 # 如果只是推理，需要重命名后保存
                 if self.config.rollout.only:
-                    self.seve_rollout_result(hps_score, prompt, images_path, global_steps)
+                    self.save_rollout_result(hps_score, prompt, images_path, global_steps)
                 all_rewards.append(hps_score)
                 print(f"-> The png {png_path}, reward is {hps_score}")
         data.batch["rewards"] = torch.cat(all_rewards, dim=0)
@@ -393,19 +395,14 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                         dist.all_reduce(avg_loss, op=dist.ReduceOp.AVG)
                         total_loss += avg_loss
 
-                        if self.ref_module_fsdp is not None:
-                            avg_kl_loss = kl_loss.detach().clone()
-                            dist.all_reduce(avg_kl_loss, op=dist.ReduceOp.AVG)
-                            total_kl_loss += avg_kl_loss.item()
-
                     rank = torch.distributed.get_rank()
                     if rank == 0:
                         end_time = time.time()
                         logger.info(
-                            f"Step {i + 1}/{len(train_timesteps)}: Loss {total_loss:.4f}, total_kl_loss {total_kl_loss:.4f}, Time {end_time - start_time:.4f}")
+                            f"Step {i + 1}/{len(train_timesteps)}: Loss {total_loss:.4f}, Time {end_time - start_time:.4f}")
 
-                # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(self.actor_module_fsdp.parameters(), actor_config.ppo_max_grad_norm)
+            # Gradient clipping
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_module_fsdp.parameters(), actor_config.ppo_max_grad_norm)
 
             # wan2.2 optimizer
             self.actor_optimizer.step()
@@ -417,11 +414,15 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
+            reward_mean = torch.mean(rewards).detach().item()
+            if torch.distributed.get_rank() == 0:
+                logger.info(f"===>>> Loss {total_loss:.4f}, Reward_mean: {reward_mean:.4f}")
+
             # Create metrics dictionary
             metrics = {
                 "total_loss": total_loss,
-                "policy_loss": total_policy_loss,
-                "kl_loss": total_kl_loss,
+                "reward_mean": reward_mean,
+                "grad_norm": grad_norm
             }
             output = DataProto(meta_info={"metrics": metrics})
             log_gpu_memory_usage(f"After update_actor", logger=logger, level=logging.INFO)
@@ -462,7 +463,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         load_checkpoint(
             [self.actor_module_fsdp], optimizer, opt_param_scheduler, checkpointing_context=checkpointing_context,
             skip_load_to_model_and_opt=getattr(args, "use_torch_fsdp2", False) and args.ckpt_format == "torch_dist")
-        print('Success load checkpoint from local_path: ', local_path)
+        print('Success load checkpoint from local_path: ', args.load)
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def online_test(self, step: int):
@@ -478,7 +479,8 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         base, _ = os.path.splitext(images_path)
         png_path = base + '.png'
         image.save(png_path, format="PNG")
-        hps_score = self.reward_model.reward([png_path], [prompt])
+        reward_coeff = 0.1
+        hps_score = reward_coeff * self.reward_module.reward([png_path], [prompt])
         if hps_score.ndim == 2:
             hps_score = hps_score[:, 0]
         # 记录打分结果
@@ -492,7 +494,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
             import json
             f.write(json.dumps(context, ensure_ascii=False) + "\n")
 
-    def seve_rollout_result(self, hps_score, prompt, images_path, global_steps):
+    def save_rollout_result(self, hps_score, prompt, images_path, global_steps):
         save_path = self.config.rollout.result.save.path
         if save_path is None:
             raise ValueError('the rollout result save path is None')

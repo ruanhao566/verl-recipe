@@ -41,9 +41,10 @@ class DataParallelPPOActor(BasePPOActor):
     """FSDP DataParallel PPO Actor or Ref worker
 
     Args:
-        config (ActorConfig): Actor config
         actor_module (nn.Module): Actor or ref module
-        actor_optimizer (torch.optim.Optimizer, optional): Actor optimizer. Defaults to None.
+        config (ActorConfig): Actor config
+        scheduler (mindspeed_mm.models.diffusion, DiffusionModel): Actor scheduler. Defaults to None.
+        tokenizer (mindspeed_mm.models.text_encoder, Tokenizer): Model tokenizer. Defaults to None.
     """
 
     def __init__(self, actor_module: nn.Module, config: ActorConfig, scheduler: DiffusionModel, tokenizer: Tokenizer):
@@ -61,7 +62,7 @@ class DataParallelPPOActor(BasePPOActor):
             i,
             text_hidden_states=None,
             negative_text_hidden_states=None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """
         GRPO one step implementation for diffusion model training
 
@@ -89,7 +90,7 @@ class DataParallelPPOActor(BasePPOActor):
         return log_probs
 
     def compute_log_prob(self, data: DataProto) -> torch.Tensor:
-        pass
+        raise NotImplementedError("compute_log_prob is not implemented for DataParallelPPOActor")
 
     def update_policy(self, data: DataProto) -> dict:
-        pass
+        raise NotImplementedError("update_policy is not implemented for DataParallelPPOActor")

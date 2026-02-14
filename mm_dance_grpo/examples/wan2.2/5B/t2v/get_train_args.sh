@@ -35,7 +35,7 @@ DISTRIBUTED_ARGS="
     --nnodes $NNODES \
     --node_rank $NODE_RANK \
     --master_addr $MASTER_ADDR \
-    --master_port $MASTER_PORT
+    --master_port $MASTER_PORT \
 "
 
 GPT_ARGS="
@@ -84,7 +84,7 @@ OUTPUT_ARGS="
     --ckpt-format torch_dcp \
 "
 
-torchrun $DISTRIBUTED_ARGS pretrain_sora.py \
+torchrun $DISTRIBUTED_ARGS ./recipe/mm_dance_grpo/pretrain_args.py \
     $GPT_ARGS \
     $MM_ARGS \
     $OUTPUT_ARGS \

@@ -57,7 +57,7 @@ pip install -e .
 cd ..
 
 # Installing Other Packages
-pip install diffusers==0.35.1 peft==0.17.1 torch_npu==2.7.1 loguru==0.7.3 opencv-python==4.10.0.84 opencv-python-headless==4.10.0.84 tf-keras matplotlib==3.10.8
+pip install diffusers==0.35.1 peft==0.17.1 torch_npu==2.7.1 loguru==0.7.3 opencv-python-headless==4.10.0.84 tf-keras matplotlib==3.10.8
 
 cd verl
 

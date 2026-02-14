@@ -21,13 +21,12 @@ import socket
 import hydra
 import ray
 from omegaconf import OmegaConf
-from recipe.dance_grpo_mm.dance_ray_trainer import RayDANCETrainer
+from recipe.mm_dance_grpo.dance_ray_trainer import RayDANCETrainer
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
-from verl.trainer.ppo.reward import load_reward_manager
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 from verl.utils.device import is_cuda_available
-
+from recipe.mm_dance_grpo.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
 
 @hydra.main(config_path="config", config_name="dance_ppo_trainer", version_base=None)
 def main(config):
@@ -124,7 +123,7 @@ class TaskRunner:
             return actor_rollout_cls, ray_worker_group_cls
 
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
-            from recipe.dance_grpo_mm.diffusion_workers import DiffusionActorRolloutWorker, MllmWorker
+            from recipe.mm_dance_grpo.diffusion_workers import DiffusionActorRolloutWorker, MllmWorker
             actor_rollout_cls = DiffusionActorRolloutWorker
             ray_worker_group_cls = RayWorkerGroup
         else:
@@ -211,8 +210,6 @@ class TaskRunner:
 
         from omegaconf import OmegaConf
 
-        from verl.utils.fs import copy_to_local
-
         print(f"TaskRunner hostname: {socket.gethostname()}, PID: {os.getpid()}")
         pprint(OmegaConf.to_container(config, resolve=True))
         OmegaConf.resolve(config)
@@ -237,28 +234,6 @@ class TaskRunner:
             use_critic=need_critic(config),
         )
 
-        # Download the checkpoint from HDFS to the local machine.
-        # `use_shm` determines whether to use shared memory, which could lead to faster model loading if turned on
-        local_path = copy_to_local(
-            config.actor_rollout_ref.model.path, use_shm=config.actor_rollout_ref.model.get("use_shm", False)
-        )
-
-        # Instantiate the tokenizer and processor.
-        from verl.utils import hf_processor, hf_tokenizer
-
-        trust_remote_code = config.data.get("trust_remote_code", False)
-        tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
-        # Used for multimodal LLM, could be None
-        processor = hf_processor(local_path, trust_remote_code=trust_remote_code, use_fast=True)
-
-        # Load the reward manager for training and validation.
-        reward_fn = load_reward_manager(
-            config, tokenizer, num_examine=0, **config.reward_model.get("reward_kwargs", {})
-        )
-        val_reward_fn = load_reward_manager(
-            config, tokenizer, num_examine=1, **config.reward_model.get("reward_kwargs", {})
-        )
-
         resource_pool_manager = self.init_resource_pool_mgr(config)
 
         from verl.utils.dataset.rl_dataset import collate_fn
@@ -267,29 +242,29 @@ class TaskRunner:
         train_dataset = create_rl_dataset(
             config.data.train_files,
             config.data,
-            tokenizer,
-            processor,
+            None,
+            None,
             is_train=True,
             max_samples=config.data.get("train_max_samples", -1),
         )
         val_dataset = create_rl_dataset(
             config.data.val_files,
             config.data,
-            tokenizer,
-            processor,
+            None,
+            None,
             is_train=False,
             max_samples=config.data.get("val_max_samples", -1),
         )
         train_sampler = create_rl_sampler(config.data, train_dataset)
         trainer = RayDANCETrainer(
             config=config,
-            tokenizer=tokenizer,
-            processor=processor,
+            tokenizer=None,
+            processor=None,
             role_worker_mapping=self.role_worker_mapping,
             resource_pool_manager=resource_pool_manager,
             ray_worker_group_cls=ray_worker_group_cls,
-            reward_fn=reward_fn,
-            val_reward_fn=val_reward_fn,
+            reward_fn=None,
+            val_reward_fn=None,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             collate_fn=collate_fn,
@@ -300,43 +275,6 @@ class TaskRunner:
 
         # Start the training process.
         trainer.fit()
-
-
-def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train=True, max_samples: int = -1):
-    from verl.utils.dataset.rl_dataset import RLHFDataset
-    dataset_cls = RLHFDataset
-    print(f"Using dataset class: {dataset_cls.__name__}")
-
-    # Instantiate the dataset using the determined dataset class
-    dataset = dataset_cls(
-        data_files=data_paths,
-        tokenizer=tokenizer,
-        processor=processor,
-        config=data_config,
-        max_samples=max_samples,
-    )
-
-    return dataset
-
-
-def create_rl_sampler(data_config, dataset):
-    import torch
-    from torch.utils.data import SequentialSampler
-
-    # torch.utils.data.RandomSampler could not recover properly
-    from torchdata.stateful_dataloader.sampler import RandomSampler
-
-    if data_config.shuffle:
-        train_dataloader_generator = torch.Generator()
-        seed = data_config.get("seed")
-        if seed is not None:
-            train_dataloader_generator.manual_seed(seed)
-        sampler = RandomSampler(data_source=dataset, generator=train_dataloader_generator)
-    else:
-        # If shuffling is disabled, use a sequential sampler to iterate through the dataset in order.
-        sampler = SequentialSampler(data_source=dataset)
-
-    return sampler
 
 
 def remove_autocast_from_file(filepath):
@@ -365,6 +303,7 @@ def remove_autocast_from_file(filepath):
 
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
+    # TODO temporary repair
     file_to_modify = f"{current_dir}/../../mindspeed_mm/models/common/embeddings/pos_embeddings.py"
     remove_autocast_from_file(file_to_modify)
     main()

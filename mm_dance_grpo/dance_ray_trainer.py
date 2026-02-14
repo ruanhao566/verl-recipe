@@ -418,7 +418,7 @@ class RayDANCETrainer(RayPPOTrainer):
         # load dataloader,
         dataloader_local_path = os.path.join(global_step_folder, "data.pt")
         if os.path.exists(dataloader_local_path):
-            dataloader_state_dict = torch.load(dataloader_local_path, weights_only=False)
+            dataloader_state_dict = torch.load(dataloader_local_path, weights_only=True)
             self.train_dataloader.load_state_dict(dataloader_state_dict)
         else:
             print(f"Warning: No dataloader state found at {dataloader_local_path}, will start from scratch")
@@ -500,9 +500,6 @@ class RayDANCETrainer(RayPPOTrainer):
                 gen_batch_output = gen_batch
                 with (marked_timer("step", timing_raw)):
                     # generate a batch
-                    with marked_timer("encode", timing_raw, "blue"):
-                        # First encode the prompt using MllmWorker
-                        gen_batch_output = self.mllm_wg.encode_prompt(gen_batch_output)
                     with marked_timer("gen", timing_raw, "red"):
                         # Then generate sequences using DiffusionActorRolloutWorker with hidden_states
                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch_output)
@@ -515,7 +512,7 @@ class RayDANCETrainer(RayPPOTrainer):
                     batch = batch.union(gen_batch_output)
 
                     with marked_timer("reward", timing_raw, "yellow"):
-                        batch.normalize_reward["global_steps"] = np.array(
+                        batch.non_tensor_batch["global_steps"] = np.array(
                             [self.global_steps for _ in range(len(batch.batch))], dtype=object
                         )
                         batch = self.actor_rollout_wg.compute_rm_score(batch)
@@ -574,7 +571,7 @@ class RayDANCETrainer(RayPPOTrainer):
         """
         # TODO: we have to make sure the batch size is divisible by the dp size
 
-        from recipe.mm_dance_grpo.main_dance import create_rl_dataset, create_rl_sampler
+        from recipe.mm_dance_grpo.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
 
         if train_dataset is None:
             train_dataset = create_rl_dataset(
@@ -597,7 +594,7 @@ class RayDANCETrainer(RayPPOTrainer):
         if train_sampler is None:
             train_sampler = create_rl_sampler(self.config.data, self.train_dataset)
         if collate_fn is None:
-            from recipe.mm_dance_grpo.utiles.rl_latent_dataset import collate_fn as default_collate_fn
+            from recipe.mm_dance_grpo.utils.rl_latent_dataset import collate_fn as default_collate_fn
             collate_fn = default_collate_fn
 
         num_workers = self.config.data["dataloader_num_workers"]
