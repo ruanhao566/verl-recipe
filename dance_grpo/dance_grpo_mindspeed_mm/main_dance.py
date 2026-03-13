@@ -21,12 +21,12 @@ import socket
 import hydra
 import ray
 from omegaconf import OmegaConf
-from recipe.mm_dance_grpo.dance_ray_trainer import RayDANCETrainer
+from recipe.dance_grpo.dance_grpo_mindspeed_mm.dance_ray_trainer import RayDANCETrainer
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 from verl.utils.device import is_cuda_available
-from recipe.mm_dance_grpo.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
+from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
 
 @hydra.main(config_path="config", config_name="dance_ppo_trainer", version_base=None)
 def main(config):
@@ -123,7 +123,7 @@ class TaskRunner:
             return actor_rollout_cls, ray_worker_group_cls
 
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
-            from recipe.mm_dance_grpo.diffusion_workers import DiffusionActorRolloutWorker
+            from recipe.dance_grpo.dance_grpo_mindspeed_mm.diffusion_workers import DiffusionActorRolloutWorker
             actor_rollout_cls = DiffusionActorRolloutWorker
             ray_worker_group_cls = RayWorkerGroup
         else:

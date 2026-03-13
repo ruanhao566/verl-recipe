@@ -27,7 +27,8 @@ cd ..
 
 # Update the recipe directory.
 git clone https://github.com/verl-project/verl-recipe.git
-cp -rf verl-recipe/mm_dance_grpo verl/recipe/
+mkdir verl/recipe/dance_grpo
+cp -rf verl-recipe/dance_grpo/dance_grpo_mindspeed_mm verl/recipe/dance_grpo/
 
 # Installing the Mindspeed-MM
 git clone https://gitcode.com/Ascend/MindSpeed-MM.git
@@ -73,19 +74,20 @@ ln -s ../MindSpeed-MM/mindspeed_mm/ ./mindspeed_mm
 # verl-recipe
 # verl
 # ├── recipe
-#     ├── mm_dance_grpo
+#     ├── dance_grpo
+#         ├── dance_grpo_mindspeed_mm
 ```
 
 ## 2. Dataset preparation ##
 
-Reference ` verl/recipe/mm_dance_grpo/data/prompt.txt ` In the example provided in, you can replace the customized prompt text and run the following command to generate a parquet file:
+Reference ` verl/recipe/dance_grpo/dance_grpo_mindspeed_mm/data/prompt.txt ` In the example provided in, you can replace the customized prompt text and run the following command to generate a parquet file:
 
 ```shell
 # cd verl
 
-python ./recipe/mm_dance_grpo/dataset/data_process.py
+python ./recipe/dance_grpo/dance_grpo_mindspeed_mm/dataset/data_process.py
 
-# Check whether the parquet file is generated in ./recipe/mm_dance_grpo/data/parquet.
+# Check whether the parquet file is generated in ./recipe/dance_grpo_mindspeed_mm/data/parquet.
 ```
 
 ## 3. Training model preparation ##
@@ -173,22 +175,22 @@ Modify the following parameters and run the script to generate the args file for
 
 | Configuration File                                                   | Modifying a field | Modification Description                                                                                           |
 |----------------------------------------------------------------------| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
-| verl/recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/model.json | from_pretrained   | Set this parameter to the path corresponding to the downloaded weight (including tokenizer, ae, and text_encoder). |
-| verl/recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/get_train_args.sh    | LOAD_PATH         | Pre-training weight path after DCP weight conversion in the WAN 2.2 model                                          |
-| verl/recipe/mm_dance_grpo/examples/wan2.2/5B/fsdp2_config.yaml       | sharding_size     | Indicates the number of fragments with the weight in FSDP2 mode, which is usually the same as the number of cards. |
+| verl/recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/model.json | from_pretrained   | Set this parameter to the path corresponding to the downloaded weight (including tokenizer, ae, and text_encoder). |
+| verl/recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/get_train_args.sh    | LOAD_PATH         | Pre-training weight path after DCP weight conversion in the WAN 2.2 model                                          |
+| verl/recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/fsdp2_config.yaml       | sharding_size     | Indicates the number of fragments with the weight in FSDP2 mode, which is usually the same as the number of cards. |
 
 ```shell
 # source /usr/local/Ascend/cann/set_env.sh
 # cd verl
 
-bash ./recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/get_train_args.sh
+bash ./recipe/dance_grpo/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/get_train_args.sh
 
-# Check whether the mindspeed_args.pkl and mm_args.pkl files are generated in ./recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/output_args.
+# Check whether the mindspeed_args.pkl and mm_args.pkl files are generated in ./recipe/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/output_args.
 ```
 
 ## 6. Model RL training ##
 
-Modifying Parameters in the verl/recipe/mm_dance_grpo/run_verl_dance.sh RL Training Script
+Modifying Parameters in the verl/recipe/dance_grpo/dance_grpo_mindspeed_mm/run_verl_dance.sh RL Training Script
 
 | Field Name                      | Modification Description                                                                                                                                  |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -203,5 +205,5 @@ Start RL training.
 ```shell
 # cd verl
 
-bash recipe/mm_dance_grpo/run_verl_dance.sh
+bash recipe/dance_grpo/dance_grpo_mindspeed_mm/run_verl_dance.sh
 ```

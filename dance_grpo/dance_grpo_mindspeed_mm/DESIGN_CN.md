@@ -151,7 +151,7 @@ flowchart LR
 
 ### 3.1 RayDANCETrainer
 
-**位置**: `recipe/mm_dance_grpo/dance_ray_trainer.py`
+**位置**: `recipe/dance_grpo/dance_grpo_mindspeed_mm/dance_ray_trainer.py`
 
 **职责**:
 - 继承自 `RayPPOTrainer`，复用 verl 的分布式训练基础设施。
@@ -178,7 +178,7 @@ class RayDANCETrainer(RayPPOTrainer):
 
 ### 3.2 DiffusionActorRolloutWorker
 
-**位置**: `recipe/mm_dance_grpo/diffusion_workers.py`
+**位置**: `recipe/dance_grpo/dance_grpo_mindspeed_mm/diffusion_workers.py`
 
 **职责**:
 - 封装 Rollout、奖励计算和 GRPO 更新的完整逻辑。
@@ -308,7 +308,7 @@ def update_actor(self, data: DataProto):
 
 ### 3.3 HFRollout
 
-**位置**: `recipe/mm_dance_grpo/rollout.py`
+**位置**: `recipe/dance_grpo/dance_grpo_mindspeed_mm/rollout.py`
 
 **职责**:
 - 执行扩散模型的采样过程，生成视频序列并记录 log_probs。
@@ -337,7 +337,7 @@ class HFRollout:
 
 ### 3.4 DataParallelPPOActor
 
-**位置**: `recipe/mm_dance_grpo/actor.py`
+**位置**: `recipe/dance_grpo/dance_grpo_mindspeed_mm/actor.py`
 
 **职责**:
 - 封装扩散模型的前向传播逻辑。
@@ -365,13 +365,13 @@ class DataParallelPPOActor(BasePPOActor):
 
 ```
 verl.trainer.ppo.ray_trainer.RayPPOTrainer
-    └─> recipe.mm_dance_grpo.dance_ray_trainer.RayDANCETrainer
+    └─> recipe.dance_grpo.dance_grpo_mindspeed_mm.dance_ray_trainer.RayDANCETrainer
 
 verl.workers.actor.base.BasePPOActor
-    └─> recipe.mm_dance_grpo.actor.DataParallelPPOActor
+    └─> recipe.dance_grpo.dance_grpo_mindspeed_mm.actor.DataParallelPPOActor
 
 verl.single_controller.base.Worker
-    └─> recipe.mm_dance_grpo.diffusion_workers.DiffusionActorRolloutWorker
+    └─> recipe.dance_grpo.dance_grpo_mindspeed_mm.diffusion_workers.DiffusionActorRolloutWorker
 ```
 
 ```mermaid
@@ -451,7 +451,7 @@ class DiffusionActorRolloutWorker(Worker):
 
 ### 4.2 支持新的扩散模型
 
-当前框架模型适配了wan2.2模型，理论上可以适配Mindspeed-MM仓上的所有生成类模型，只需要整理配置项，添加到 [mm_dance_grpo/examples](../mm_dance_grpo/examples) 目录即可；
+当前框架模型适配了wan2.2模型，理论上可以适配Mindspeed-MM仓上的所有生成类模型，只需要整理配置项，添加到 [dance_grpo/dance_grpo_mindspeed_mm/examples](/examples) 目录即可；
 
 ## 5. 参考资料
 

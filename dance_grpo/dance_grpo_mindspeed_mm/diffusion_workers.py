@@ -196,9 +196,9 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         from mindspeed_mm.models.text_encoder import Tokenizer
         from mindspeed_mm.training import no_wd_decay_cond, scale_lr_cond
         from mindspeed.core.distributed.torch_fully_sharded_data_parallel.training import get_model
-        from recipe.mm_dance_grpo.patches.sora_model import MMSoRAModel
-        from recipe.mm_dance_grpo.rollout import HFRollout
-        from recipe.mm_dance_grpo.actor import DataParallelPPOActor
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.patches.sora_model import MMSoRAModel
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.rollout import HFRollout
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.actor import DataParallelPPOActor
 
         # mm的模型提供
         def mm_model_provider(pre_process=True, post_process=True):

@@ -558,7 +558,7 @@ class RayDANCETrainer(RayPPOTrainer):
         """
         # TODO: we have to make sure the batch size is divisible by the dp size
 
-        from recipe.mm_dance_grpo.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
 
         if train_dataset is None:
             train_dataset = create_rl_dataset(
@@ -581,7 +581,7 @@ class RayDANCETrainer(RayPPOTrainer):
         if train_sampler is None:
             train_sampler = create_rl_sampler(self.config.data, self.train_dataset)
         if collate_fn is None:
-            from recipe.mm_dance_grpo.utils.rl_latent_dataset import collate_fn as default_collate_fn
+            from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import collate_fn as default_collate_fn
             collate_fn = default_collate_fn
 
         num_workers = self.config.data["dataloader_num_workers"]

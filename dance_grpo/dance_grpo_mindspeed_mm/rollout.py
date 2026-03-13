@@ -17,7 +17,7 @@ import torch
 import torch.distributed
 from mindspeed_mm.models.diffusion import DiffusionModel
 from mindspeed_mm.models.text_encoder import Tokenizer
-from recipe.mm_dance_grpo.model.modeling_sora_model import ModelingSoraModelInference
+from recipe.dance_grpo.dance_grpo_mindspeed_mm.model.modeling_sora_model import ModelingSoraModelInference
 from torch import nn
 from verl import DataProto
 from verl.utils.device import get_device_name, get_torch_device
@@ -60,7 +60,7 @@ class HFRollout:
         batch_indices = torch.chunk(torch.arange(grpo_size), num_chunks)
 
         # 一个prompt使用同一个噪声输入
-        self.src_latents = self.sora_rollout.get_noice_latents(prompt_embeds.dtype)
+        self.src_latents = self.sora_rollout.get_noise_latents(prompt_embeds.dtype)
 
         for index, chunk in enumerate(batch_indices):
             prompt_embeds_chunk = prompt_embeds[chunk]

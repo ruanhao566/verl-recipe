@@ -23,7 +23,7 @@ import os
 import torch
 from mindspeed_mm.models.diffusion import DiffusionModel
 from mindspeed_mm.models.text_encoder import Tokenizer
-from recipe.mm_dance_grpo.model.modeling_sora_model import ModelingSoraModelTrain
+from recipe.dance_grpo.dance_grpo_mindspeed_mm.model.modeling_sora_model import ModelingSoraModelTrain
 from torch import nn
 from verl import DataProto
 from verl.utils.device import get_device_name

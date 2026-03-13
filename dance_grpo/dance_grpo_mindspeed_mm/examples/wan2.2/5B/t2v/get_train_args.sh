@@ -28,9 +28,9 @@ GRAD_ACC_STEP=1
 DP=$(($WORLD_SIZE/$TP/$PP/$CP))
 GBS=$(($MBS*$GRAD_ACC_STEP*$DP))
 
-MM_MODEL="./recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/model.json"
+MM_MODEL="./recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/model.json"
 LOAD_PATH="Wan2.2-TI2V-5B-Diffusers/dcp_convert"  # ensure the wandit weight be converted
-fsdp2_config="./recipe/mm_dance_grpo/examples/wan2.2/5B/fsdp2_config.yaml"
+fsdp2_config="./recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/fsdp2_config.yaml"
 
 DISTRIBUTED_ARGS="
     --nproc_per_node $NPUS_PER_NODE \
@@ -86,7 +86,7 @@ OUTPUT_ARGS="
     --ckpt-format torch_dcp \
 "
 
-torchrun $DISTRIBUTED_ARGS ./recipe/mm_dance_grpo/pretrain_args.py \
+torchrun $DISTRIBUTED_ARGS ./recipe/dance_grpo/dance_grpo_mindspeed_mm/pretrain_args.py \
     $GPT_ARGS \
     $MM_ARGS \
     $OUTPUT_ARGS \

@@ -20,7 +20,7 @@ export HCCL_NPU_SOCKET_PORT_RANGE="auto"
 export DISABLE_L2_CACHE=1
 
 reward_model_path=/home/CKPT/HPSv3/HPSv3.safetensors
-model_args_path=$PROJECT_DIR/recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/output_args
+model_args_path=$PROJECT_DIR/recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/output_args
 # 用于在训练过程中，每隔n步进行一次相同prompt的推理，保存推理结果和评分
 rollout_online_path=$PROJECT_DIR/rollout_online_save/$(date +%Y%m%d)_$(date +%H%M%S)/
 # 间隔测试的prompt
@@ -28,13 +28,13 @@ rollout_online_prompt='The video presents a serene winter landscape that remains
 # 用于单独进行推理测试，保存所有推理结果和评分
 rollout_result_path=$PROJECT_DIR/rollout_result_save/$(date +%Y%m%d)_$(date +%H%M%S)/
 
-train_data=$PROJECT_DIR/recipe/mm_dance_grpo/data/parquet/train.parquet
-test_data=$PROJECT_DIR/recipe/mm_dance_grpo/data/parquet/test.parquet
+train_data=$PROJECT_DIR/recipe/dance_grpo/dance_grpo_mindspeed_mm/data/parquet/train.parquet
+test_data=$PROJECT_DIR/recipe/dance_grpo/dance_grpo_mindspeed_mm/data/parquet/test.parquet
 
 logfile=$(date +%Y%m%d)_$(date +%H%M%S)
 mkdir -p logs
 
-python3 -m recipe.mm_dance_grpo.main_dance \
+python3 -m recipe.dance_grpo.dance_grpo_mindspeed_mm.main_dance \
     --config-path=config \
     --config-name="dance_ppo_trainer" \
     algorithm.adv_estimator=grpo \

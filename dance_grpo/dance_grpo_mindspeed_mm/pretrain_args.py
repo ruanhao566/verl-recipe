@@ -11,7 +11,7 @@ from mindspeed_mm.configs.config import mm_extra_args_provider
 
 # 保存mindspeed_args
 mindspeed_args = get_mindspeed_args()
-output_path = './recipe/mm_dance_grpo/examples/wan2.2/5B/t2v/output_args'
+output_path = './recipe/dance_grpo/dance_grpo_mindspeed_mm/examples/wan2.2/5B/t2v/output_args'
 os.makedirs(output_path, exist_ok=True)
 with open(f'{output_path}/mindspeed_args.pkl', 'wb') as f:
     pickle.dump(mindspeed_args, f)

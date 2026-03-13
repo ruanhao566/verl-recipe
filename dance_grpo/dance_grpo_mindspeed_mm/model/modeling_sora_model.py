@@ -104,7 +104,7 @@ class ModelingSoraModelInference():
             latents = latents * self.scheduler.init_noise_sigma
         return latents
 
-    def get_noice_latents(self, dtype):
+    def get_noise_latents(self, dtype):
         device = 'npu'
         shape = (
             1, self.predictor.in_dim,
