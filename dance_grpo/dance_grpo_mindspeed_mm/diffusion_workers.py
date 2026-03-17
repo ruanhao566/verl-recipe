@@ -305,7 +305,8 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         log_gpu_memory_usage("Before update_actor", logger=logger)
         assert self._is_actor
         logger.info(
-            f"param_offload: {self.config.actor.fsdp_config.param_offload}, optimizer_offload:{self.config.actor.fsdp_config.optimizer_offload} ")
+            f"param_offload: {self.config.actor.fsdp_config.param_offload}, "
+            f"optimizer_offload:{self.config.actor.fsdp_config.optimizer_offload} ")
 
         # 根据是否有序列并行决定是否使用分片管理器
         if self.ulysses_sharding_manager is not None:
@@ -328,8 +329,6 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
             adv_clip_max = actor_config.ppo_adv_clip_max
             timestep_fraction = actor_config.timestep_fraction
             clip_range = actor_config.clip_range
-            kl_coeff = actor_config.ppo_kl_coeff
-            sampling_steps = actor_config.sampling_steps
 
             # Get sigma schedule
             timesteps = self.scheduler.timesteps
@@ -337,8 +336,6 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
 
             # Initialize losses
             total_loss = 0.0
-            total_policy_loss = 0.0
-            total_kl_loss = 0.0
 
             # Perform GRPO update
             self.actor_module_fsdp.train()
@@ -400,10 +397,12 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                     if rank == 0:
                         end_time = time.time()
                         logger.info(
-                            f"Step {i + 1}/{len(train_timesteps)}: ABS Loss {total_loss:.4f}, Time {end_time - start_time:.4f}")
+                            f"Step {i + 1}/{len(train_timesteps)}: ABS Loss {total_loss:.4f}, "
+                            f"Time {end_time - start_time:.4f}")
 
             # Gradient clipping
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_module_fsdp.parameters(), actor_config.ppo_max_grad_norm).to(device='cpu')
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_module_fsdp.parameters(),
+                                                       actor_config.ppo_max_grad_norm).to(device='cpu')
 
             # wan2.2 optimizer
             self.actor_optimizer.step()

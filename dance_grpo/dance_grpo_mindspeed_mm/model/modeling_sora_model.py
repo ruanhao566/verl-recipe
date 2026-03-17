@@ -67,7 +67,7 @@ def flux_step(
 
         # mean along all but batch dimension
         log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
-        return prev_sample, pred_original_sample, log_prob  # prev_sample 加了噪声的，放到下一步，pred_original_sample 没有加噪声，直接生成视频
+        return prev_sample, pred_original_sample, log_prob  # prev_sample 加了噪声的，pred_original_sample 没有加噪声
     else:
         return prev_sample_mean, pred_original_sample
 
@@ -349,7 +349,7 @@ class ModelingSoraModelInference():
         self.text_encoder = self.text_encoder.to(device)
         prompt_embeds = self.text_encoder(text_input_ids.to(device), mask.to(device)).last_hidden_state
         prompt_embeds = prompt_embeds.to(dtype=dtype, device=device)
-        prompt_embeds = [u[:v] for u, v in zip(prompt_embeds, seq_lens)]
+        prompt_embeds = [u[:v] for u, v in zip(prompt_embeds, seq_lens, strict=True)]
         prompt_embeds = torch.stack(
             [torch.cat([u, u.new_zeros(max_sequence_length - u.size(0), u.size(1))]) for u in prompt_embeds], dim=0
         )

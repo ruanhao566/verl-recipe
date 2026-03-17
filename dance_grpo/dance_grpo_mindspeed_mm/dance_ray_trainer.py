@@ -485,7 +485,7 @@ class RayDANCETrainer(RayPPOTrainer):
                 num_gen_batches += 1
                 gen_batch = self._get_gen_batch(batch)
                 gen_batch_output = gen_batch
-                with (marked_timer("step", timing_raw)):
+                with ((marked_timer("step", timing_raw))):
                     # generate a batch
                     with marked_timer("gen", timing_raw, "red"):
                         # Then generate sequences using DiffusionActorRolloutWorker with hidden_states
@@ -512,10 +512,11 @@ class RayDANCETrainer(RayPPOTrainer):
                         continue
 
                     with marked_timer("update_actor", timing_raw, "red"):
-                        actor_output = self.actor_rollout_wg.update_actor(batch)
+                        self.actor_rollout_wg.update_actor(batch)
 
                     # 每训练4步测试一个相同样本
-                    if self.config.actor_rollout_ref.rollout.online.test and self.global_steps % self.config.actor_rollout_ref.rollout.online.step.interval == 0:
+                    if self.config.actor_rollout_ref.rollout.online.test and self.global_steps % \
+                            self.config.actor_rollout_ref.rollout.online.step.interval == 0:
                         self.actor_rollout_wg.online_test(self.global_steps)
 
                 metrics.update(
@@ -525,7 +526,6 @@ class RayDANCETrainer(RayPPOTrainer):
                     }
                 )
 
-                n_gpus = self.resource_pool_manager.get_n_gpus()
                 logger.log(data=metrics, step=self.global_steps)
                 progress_bar.update(1)
 
@@ -558,7 +558,8 @@ class RayDANCETrainer(RayPPOTrainer):
         """
         # TODO: we have to make sure the batch size is divisible by the dp size
 
-        from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, \
+            create_rl_sampler
 
         if train_dataset is None:
             train_dataset = create_rl_dataset(
@@ -581,7 +582,8 @@ class RayDANCETrainer(RayPPOTrainer):
         if train_sampler is None:
             train_sampler = create_rl_sampler(self.config.data, self.train_dataset)
         if collate_fn is None:
-            from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import collate_fn as default_collate_fn
+            from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import \
+                collate_fn as default_collate_fn
             collate_fn = default_collate_fn
 
         num_workers = self.config.data["dataloader_num_workers"]

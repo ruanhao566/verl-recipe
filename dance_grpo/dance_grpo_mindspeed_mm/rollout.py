@@ -25,7 +25,11 @@ from verl.workers.config import ActorConfig
 
 __all__ = ["HFRollout"]
 
-NEGATIVE_PROMOPT_DEFAULT = "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
+NEGATIVE_PROMOPT_DEFAULT = ("Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings,"
+                            " images, static, overall gray, worst quality, low quality, JPEG compression residue, "
+                            "ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, "
+                            "disfigured, misshapen limbs, fused fingers, still picture, messy background, "
+                            "three legs, many people in the background, walking backwards")
 
 
 class HFRollout:
