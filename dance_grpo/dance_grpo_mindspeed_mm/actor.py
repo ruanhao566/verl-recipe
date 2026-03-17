@@ -25,6 +25,7 @@ from mindspeed_mm.models.diffusion import DiffusionModel
 from mindspeed_mm.models.text_encoder import Tokenizer
 from recipe.dance_grpo.dance_grpo_mindspeed_mm.model.modeling_sora_model import ModelingSoraModelTrain
 from torch import nn
+
 from verl import DataProto
 from verl.utils.device import get_device_name
 from verl.utils.torch_dtypes import PrecisionType
@@ -56,12 +57,12 @@ class DataParallelPPOActor(BasePPOActor):
         self.param_dtype = PrecisionType.to_dtype(config.get("dtype", "bfloat16"))
 
     def forward_micro_batch(
-            self,
-            latents,
-            pre_latents,
-            i,
-            text_hidden_states=None,
-            negative_text_hidden_states=None,
+        self,
+        latents,
+        pre_latents,
+        i,
+        text_hidden_states=None,
+        negative_text_hidden_states=None,
     ) -> torch.Tensor:
         """
         GRPO one step implementation for diffusion model training

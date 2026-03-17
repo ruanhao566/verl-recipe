@@ -22,11 +22,13 @@ import hydra
 import ray
 from omegaconf import OmegaConf
 from recipe.dance_grpo.dance_grpo_mindspeed_mm.dance_ray_trainer import RayDANCETrainer
+from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
+
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 from verl.utils.device import is_cuda_available
-from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, create_rl_sampler
+
 
 @hydra.main(config_path="config", config_name="dance_ppo_trainer", version_base=None)
 def main(config):
@@ -61,10 +63,10 @@ def run_ppo(config, task_runner_class=None) -> None:
     # Create a remote instance of the TaskRunner class, and
     # Execute the `run` method of the TaskRunner instance remotely and wait for it to complete
     if (
-            is_cuda_available
-            and config.global_profiler.tool == "nsys"
-            and config.global_profiler.get("steps") is not None
-            and len(config.global_profiler.get("steps", [])) > 0
+        is_cuda_available
+        and config.global_profiler.tool == "nsys"
+        and config.global_profiler.get("steps") is not None
+        and len(config.global_profiler.get("steps", [])) > 0
     ):
         from verl.utils.import_utils import is_nvtx_available
 
@@ -124,6 +126,7 @@ class TaskRunner:
 
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
             from recipe.dance_grpo.dance_grpo_mindspeed_mm.diffusion_workers import DiffusionActorRolloutWorker
+
             actor_rollout_cls = DiffusionActorRolloutWorker
             ray_worker_group_cls = RayWorkerGroup
         else:
@@ -276,19 +279,20 @@ def remove_autocast_from_file(filepath):
         print(f">>> File not find: {filepath}")
         return False
 
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         content = f.read()
 
     patterns = [
-        r'^\s*@autocast\([^)]*\)\s*\n',  # @autocast(...)
+        r"^\s*@autocast\([^)]*\)\s*\n",  # @autocast(...)
     ]
     original_len = len(content)
     for pattern in patterns:
         import re
-        content = re.sub(pattern, '', content, flags=re.MULTILINE)
+
+        content = re.sub(pattern, "", content, flags=re.MULTILINE)
 
     if len(content) != original_len:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"Success {filepath} remove @autocast")
         return True

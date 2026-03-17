@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 def create_rl_dataset(data_paths, data_config, tokenizer, processor, is_train=True, max_samples: int = -1):
     from recipe.dance_grpo.dance_grpo_mindspeed_mm.patches.rl_dataset import MMDataset
+
     dataset_cls = MMDataset
     print(f"Using dataset class: {dataset_cls.__name__}")
 

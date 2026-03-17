@@ -20,10 +20,7 @@ import datasets
 
 
 def datasets_json_to_parquet(json_path):
-    dataset = datasets.load_dataset("json", data_files={
-        "train": json_path,
-        "test": json_path
-    })
+    dataset = datasets.load_dataset("json", data_files={"train": json_path, "test": json_path})
     train_dataset = dataset["train"]
     test_dataset = dataset["test"]
 
@@ -74,7 +71,7 @@ def txt_to_json(txt_file_path, json_file_path):
     prompt_list = []
 
     try:
-        with open(txt_file_path, 'r', encoding='utf-8') as f:
+        with open(txt_file_path, encoding="utf-8") as f:
             lines = f.readlines()
             for line_num, line in enumerate(lines, 1):
                 clean_line = line.strip()
@@ -82,7 +79,7 @@ def txt_to_json(txt_file_path, json_file_path):
                     continue
                 prompt_list.append({"prompt": clean_line})
 
-        with open(json_file_path, 'w', encoding='utf-8') as f:
+        with open(json_file_path, "w", encoding="utf-8") as f:
             json.dump(prompt_list, f, indent=4, ensure_ascii=False)
         print(f"Conversion completed! {json_file_path} generated with {len(prompt_list)} valid prompts")
 
@@ -95,10 +92,10 @@ def txt_to_json(txt_file_path, json_file_path):
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     print(f"Current_dir: {current_dir}")
-    data_text = current_dir + '/../data/prompt.txt'
-    data_json = current_dir + '/../data/prompt.json'
+    data_text = current_dir + "/../data/prompt.txt"
+    data_json = current_dir + "/../data/prompt.json"
     txt_to_json(data_text, data_json)
-    data_save = current_dir + '/../data/parquet/'
+    data_save = current_dir + "/../data/parquet/"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--local_dir", default=data_save)

@@ -16,21 +16,22 @@
 import dataclasses
 import datetime
 import logging
-import random
 import os
 import pickle
+import random
 import time
 
 import cv2
 import torch
 import torch.distributed as dist
-from PIL import Image
 from megatron.core.enums import ModelType
 from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator
 from megatron.core.optimizer import OptimizerConfig
 from megatron.training.global_vars import get_args, set_args
 from omegaconf import DictConfig
+from PIL import Image
 from torch.distributed.device_mesh import init_device_mesh
+
 from verl import DataProto
 from verl.single_controller.base import Worker
 from verl.single_controller.base.decorator import Dispatch, make_nd_compute_dataproto_dispatch_fn, register
@@ -50,6 +51,7 @@ device_name = get_device_name()
 
 def set_random_seed(seed, only_rollout=False):
     import random
+
     import numpy as np
 
     torch.manual_seed(seed)
@@ -57,6 +59,7 @@ def set_random_seed(seed, only_rollout=False):
     random.seed(seed)
     if not only_rollout and get_torch_device().device_count() > 0:
         from megatron.core import tensor_parallel
+
         tensor_parallel.model_parallel_cuda_manual_seed(seed)
 
 
@@ -96,7 +99,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
     4. Checkpointing and loading of model and optimizer states
     """
 
-    def __init__(self, config: DictConfig, role='hybrid', **kwargs):
+    def __init__(self, config: DictConfig, role="hybrid", **kwargs):
         log_gpu_memory_usage("Before Diffusion Worker init", logger=logger, level=logging.INFO)
         Worker.__init__(self)
         self.config = config
@@ -105,11 +108,13 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         self._is_rollout = role in ["rollout", "hybrid"]
         # Init mindspeed args
         import mindspeed.args_utils as args_utils
-        with open(f'{self.config.actor.model_args_path}/mindspeed_args.pkl', 'rb') as f:
+
+        with open(f"{self.config.actor.model_args_path}/mindspeed_args.pkl", "rb") as f:
             args_utils._MINDSPEED_ARGS = pickle.load(f)
         # TODO Mindspeed patch init
-        import mindspeed.megatron_adaptor
-        with open(f'{self.config.actor.model_args_path}/mm_args.pkl', 'rb') as f:
+        import mindspeed.megatron_adaptor  # noqa: F401
+
+        with open(f"{self.config.actor.model_args_path}/mm_args.pkl", "rb") as f:
             args = pickle.load(f)
         set_args(args)
         args = get_args()
@@ -134,6 +139,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                 init_method=os.environ.get("DIST_INIT_METHOD", None),
             )
             from megatron.core import parallel_state as mpu
+
             mpu.initialize_model_parallel()
         set_random_seed(seed=123, only_rollout=False)
 
@@ -192,13 +198,13 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
     def _mm_build_model_optimizer(self):
         """Setup FSDP for distributed training"""
         log_gpu_memory_usage("Before init_fsdp_module", logger=logger, level=logging.INFO)
+        from mindspeed.core.distributed.torch_fully_sharded_data_parallel.training import get_model
         from mindspeed_mm.models.diffusion import DiffusionModel
         from mindspeed_mm.models.text_encoder import Tokenizer
         from mindspeed_mm.training import no_wd_decay_cond, scale_lr_cond
-        from mindspeed.core.distributed.torch_fully_sharded_data_parallel.training import get_model
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.actor import DataParallelPPOActor
         from recipe.dance_grpo.dance_grpo_mindspeed_mm.patches.sora_model import MMSoRAModel
         from recipe.dance_grpo.dance_grpo_mindspeed_mm.rollout import HFRollout
-        from recipe.dance_grpo.dance_grpo_mindspeed_mm.actor import DataParallelPPOActor
 
         # mm的模型提供
         def mm_model_provider(pre_process=True, post_process=True):
@@ -217,14 +223,20 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         # 初始化actor模型的优化器
         from megatron.core.optimizer import get_megatron_optimizer
         from megatron.training.training import get_optimizer_param_scheduler
+
         kwargs = {}
         for f in dataclasses.fields(OptimizerConfig):
             if hasattr(args, f.name):
                 kwargs[f.name] = getattr(args, f.name)
         config = OptimizerConfig(**kwargs)
-        self.actor_optimizer = get_megatron_optimizer(config, [self.actor_module_fsdp], no_wd_decay_cond,
-                                                      scale_lr_cond, args.lr_mult,
-                                                      use_gloo_process_groups=args.enable_gloo_process_groups)
+        self.actor_optimizer = get_megatron_optimizer(
+            config,
+            [self.actor_module_fsdp],
+            no_wd_decay_cond,
+            scale_lr_cond,
+            args.lr_mult,
+            use_gloo_process_groups=args.enable_gloo_process_groups,
+        )
         self.actor_lr_scheduler = get_optimizer_param_scheduler(self.actor_optimizer)
 
         rollout_config = self.config.rollout
@@ -237,28 +249,29 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
 
     def _init_reward_module(self):
         from hpsv3 import HPSv3RewardInferencer
-        self.reward_module = HPSv3RewardInferencer(device='npu', checkpoint_path=self.config.model.reward_model_path)
+
+        self.reward_module = HPSv3RewardInferencer(device="npu", checkpoint_path=self.config.model.reward_model_path)
 
     @register(dispatch_mode=make_nd_compute_dataproto_dispatch_fn(mesh_name="reward"))
     def compute_rm_score(self, data: DataProto):
         all_rewards = []
         latents = data.batch["all_latents"]
         images = data.non_tensor_batch["all_imgs"]
-        prompts = data.non_tensor_batch['raw_prompt']
+        prompts = data.non_tensor_batch["raw_prompt"]
         reward_coeff = 0.1
         for i in range(latents.shape[0]):
             images_path = images[i]
-            prompt = prompts[i][0]['content']
+            prompt = prompts[i][0]["content"]
             global_steps = data.non_tensor_batch["global_steps"][i]
             with torch.no_grad():
                 image = video_first_frame_to_pil(images_path)
                 base, _ = os.path.splitext(images_path)
-                png_path = base + '.png'
+                png_path = base + ".png"
                 image.save(png_path, format="PNG")
                 hps_score = self.reward_module.reward([png_path], [prompt])
                 if hps_score.ndim == 2:
                     hps_score = hps_score[:, 0]
-                hps_score = reward_coeff * torch.tensor(hps_score, dtype=torch.float32).to('npu')
+                hps_score = reward_coeff * torch.tensor(hps_score, dtype=torch.float32).to("npu")
                 # 如果只是推理，需要重命名后保存
                 if self.config.rollout.only:
                     self.save_rollout_result(hps_score, prompt, images_path, global_steps)
@@ -306,7 +319,8 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         assert self._is_actor
         logger.info(
             f"param_offload: {self.config.actor.fsdp_config.param_offload}, "
-            f"optimizer_offload:{self.config.actor.fsdp_config.optimizer_offload} ")
+            f"optimizer_offload:{self.config.actor.fsdp_config.optimizer_offload} "
+        )
 
         # 根据是否有序列并行决定是否使用分片管理器
         if self.ulysses_sharding_manager is not None:
@@ -314,6 +328,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         else:
             # 创建一个空的上下文管理器
             from contextlib import nullcontext
+
             context_manager = nullcontext()
 
         with context_manager:
@@ -372,7 +387,7 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                             next_latents,
                             timestep_idx,
                             prompt_embeds_chunk,
-                            negative_prompt_embeds_chunk
+                            negative_prompt_embeds_chunk,
                         )
 
                         # Clamp advantages
@@ -380,10 +395,12 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                         # Calculate policy loss
                         ratio = torch.exp(new_log_probs.npu() - log_probs_chunk.npu()[:, timestep_idx])
                         unclipped_loss = -clamped_advantages.npu() * ratio.npu()
-                        clipped_loss = -clamped_advantages.npu() * torch.clamp(ratio, 1.0 - clip_range,
-                                                                               1.0 + clip_range)
+                        clipped_loss = -clamped_advantages.npu() * torch.clamp(
+                            ratio, 1.0 - clip_range, 1.0 + clip_range
+                        )
                         loss = torch.mean(torch.max(clipped_loss, unclipped_loss)) / (
-                                latents.shape[0] * len(train_timesteps))
+                            latents.shape[0] * len(train_timesteps)
+                        )
                         # Calculate KL loss if reference model is available
 
                         # Backward pass
@@ -398,11 +415,13 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                         end_time = time.time()
                         logger.info(
                             f"Step {i + 1}/{len(train_timesteps)}: ABS Loss {total_loss:.4f}, "
-                            f"Time {end_time - start_time:.4f}")
+                            f"Time {end_time - start_time:.4f}"
+                        )
 
             # Gradient clipping
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.actor_module_fsdp.parameters(),
-                                                       actor_config.ppo_max_grad_norm).to(device='cpu')
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.actor_module_fsdp.parameters(), actor_config.ppo_max_grad_norm
+            ).to(device="cpu")
 
             # wan2.2 optimizer
             self.actor_optimizer.step()
@@ -419,13 +438,9 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
                 logger.info(f"===>>> Loss {total_loss:.4f}, Reward_mean: {reward_mean:.4f}")
 
             # Create metrics dictionary
-            metrics = {
-                "total_loss": total_loss,
-                "reward_mean": reward_mean,
-                "grad_norm": grad_norm
-            }
+            metrics = {"total_loss": total_loss, "reward_mean": reward_mean, "grad_norm": grad_norm}
             output = DataProto(meta_info={"metrics": metrics})
-            log_gpu_memory_usage(f"After update_actor", logger=logger, level=logging.INFO)
+            log_gpu_memory_usage("After update_actor", logger=logger, level=logging.INFO)
         return output
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
@@ -436,15 +451,23 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         args.save = local_path
         from megatron.training.checkpointing import save_checkpoint
         from megatron.training.training import preprocess_common_state_dict
+
         num_floating_point_operations_so_far = None
         checkpointing_context = None
         optimizer = self.actor_optimizer
         opt_param_scheduler = self.actor_lr_scheduler
-        save_checkpoint(global_step, [self.actor_module_fsdp], optimizer, opt_param_scheduler,
-                        num_floating_point_operations_so_far, checkpointing_context,
-                        non_persistent_ckpt=False, train_data_iterator=None,
-                        preprocess_common_state_dict_fn=preprocess_common_state_dict)
-        print('Success save checkpoint to local_path: ', local_path)
+        save_checkpoint(
+            global_step,
+            [self.actor_module_fsdp],
+            optimizer,
+            opt_param_scheduler,
+            num_floating_point_operations_so_far,
+            checkpointing_context,
+            non_persistent_ckpt=False,
+            train_data_iterator=None,
+            preprocess_common_state_dict_fn=preprocess_common_state_dict,
+        )
+        print("Success save checkpoint to local_path: ", local_path)
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def load_checkpoint(self, local_path=None, hdfs_path=None, del_local_after_load=False):
@@ -460,16 +483,21 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         opt_param_scheduler = self.actor_lr_scheduler
         checkpointing_context = None
         from megatron.training.checkpointing import load_checkpoint
+
         load_checkpoint(
-            [self.actor_module_fsdp], optimizer, opt_param_scheduler, checkpointing_context=checkpointing_context,
-            skip_load_to_model_and_opt=getattr(args, "use_torch_fsdp2", False) and args.ckpt_format == "torch_dist")
-        print('Success load checkpoint from local_path: ', args.load)
+            [self.actor_module_fsdp],
+            optimizer,
+            opt_param_scheduler,
+            checkpointing_context=checkpointing_context,
+            skip_load_to_model_and_opt=getattr(args, "use_torch_fsdp2", False) and args.ckpt_format == "torch_dist",
+        )
+        print("Success load checkpoint from local_path: ", args.load)
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def online_test(self, step: int):
         save_path = self.config.rollout.online.save.path
         if save_path is None:
-            raise ValueError('the rollout online save path is None')
+            raise ValueError("the rollout online save path is None")
         os.makedirs(save_path, exist_ok=True)
         # 重复推理当前文本
         prompt = self.config.rollout.online.prompt
@@ -477,29 +505,27 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         # 获取第一帧打分
         image = video_first_frame_to_pil(images_path)
         base, _ = os.path.splitext(images_path)
-        png_path = base + '.png'
+        png_path = base + ".png"
         image.save(png_path, format="PNG")
         reward_coeff = 0.1
         hps_score = reward_coeff * self.reward_module.reward([png_path], [prompt])
         if hps_score.ndim == 2:
             hps_score = hps_score[:, 0]
         # 记录打分结果
-        context = {
-            "reward": hps_score.item(),
-            "images_path": images_path,
-            "prompt": prompt
-        }
+        context = {"reward": hps_score.item(), "images_path": images_path, "prompt": prompt}
         file_path = f"{save_path}/reward_result.jsonl"
         with open(file_path, "a", encoding="utf-8") as f:
             import json
+
             f.write(json.dumps(context, ensure_ascii=False) + "\n")
 
     def save_rollout_result(self, hps_score, prompt, images_path, global_steps):
         save_path = self.config.rollout.result.save.path
         if save_path is None:
-            raise ValueError('the rollout result save path is None')
+            raise ValueError("the rollout result save path is None")
         os.makedirs(save_path, exist_ok=True)
         import shutil
+
         # 移动到目标目录并重命名（增加后缀）
         dirname, filename = os.path.split(images_path)
         basename, ext = os.path.splitext(filename)
@@ -508,14 +534,11 @@ class DiffusionActorRolloutWorker(Worker, DistProfilerExtension):
         dst_path = os.path.join(save_path, new_filename)
         shutil.move(images_path, dst_path)
         # 记录打分结果
-        context = {
-            "reward": hps_score.item(),
-            "images_path": dst_path,
-            "prompt": prompt
-        }
+        context = {"reward": hps_score.item(), "images_path": dst_path, "prompt": prompt}
         file_path = f"{save_path}/reward_result.jsonl"
         with open(file_path, "a", encoding="utf-8") as f:
             import json
+
             f.write(json.dumps(context, ensure_ascii=False) + "\n")
 
 

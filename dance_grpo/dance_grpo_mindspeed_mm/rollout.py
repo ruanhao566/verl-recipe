@@ -19,17 +19,20 @@ from mindspeed_mm.models.diffusion import DiffusionModel
 from mindspeed_mm.models.text_encoder import Tokenizer
 from recipe.dance_grpo.dance_grpo_mindspeed_mm.model.modeling_sora_model import ModelingSoraModelInference
 from torch import nn
+
 from verl import DataProto
 from verl.utils.device import get_device_name, get_torch_device
 from verl.workers.config import ActorConfig
 
 __all__ = ["HFRollout"]
 
-NEGATIVE_PROMOPT_DEFAULT = ("Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings,"
-                            " images, static, overall gray, worst quality, low quality, JPEG compression residue, "
-                            "ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, "
-                            "disfigured, misshapen limbs, fused fingers, still picture, messy background, "
-                            "three legs, many people in the background, walking backwards")
+NEGATIVE_PROMOPT_DEFAULT = (
+    "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings,"
+    " images, static, overall gray, worst quality, low quality, JPEG compression residue, "
+    "ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, "
+    "disfigured, misshapen limbs, fused fingers, still picture, messy background, "
+    "three legs, many people in the background, walking backwards"
+)
 
 
 class HFRollout:
@@ -43,8 +46,8 @@ class HFRollout:
 
     @torch.no_grad()
     def _generate_minibatch(self, prompts: DataProto, p_index: int) -> DataProto:
-        device = 'npu'
-        prompt = prompts.non_tensor_batch['raw_prompt'][0]['content']
+        device = "npu"
+        prompt = prompts.non_tensor_batch["raw_prompt"][0]["content"]
         prompt_embeds, negative_prompt_embeds = self.sora_rollout.encode_texts(
             prompt=prompt,
             negative_prompt=NEGATIVE_PROMOPT_DEFAULT,
@@ -71,11 +74,7 @@ class HFRollout:
             negative_prompt_embeds_chunk = negative_prompt_embeds[chunk]
             with torch.autocast(device_type=get_device_name(), dtype=torch.bfloat16):
                 imgs, all_latents, all_log_probs = self.sora_rollout.generate(
-                    p_index,
-                    index,
-                    prompt_embeds_chunk,
-                    negative_prompt_embeds_chunk,
-                    self.src_latents.clone()
+                    p_index, index, prompt_embeds_chunk, negative_prompt_embeds_chunk, self.src_latents.clone()
                 )
             imgs_list += imgs
             all_latents_list.append(all_latents)
@@ -99,7 +98,7 @@ class HFRollout:
 
     @torch.no_grad()
     def generate_sequences(self, prompts: DataProto) -> DataProto:
-        file_index = prompts.non_tensor_batch['index']
+        file_index = prompts.non_tensor_batch["index"]
         batch_size = len(file_index)
         batch_prompts = prompts.chunk(chunks=batch_size)
         output = [self._generate_minibatch(p[0], index) for index, p in enumerate(batch_prompts)]
@@ -107,7 +106,7 @@ class HFRollout:
         repeat_file_index = []
         for index in file_index:
             repeat_file_index.extend([index] * self.config.n)
-        output.non_tensor_batch['file_index'] = repeat_file_index
+        output.non_tensor_batch["file_index"] = repeat_file_index
         return output
 
     def release(self):
@@ -121,7 +120,7 @@ class HFRollout:
 
     @torch.no_grad()
     def generate_test(self, prompt: str, step: int, save_path: str) -> str:
-        device = 'npu'
+        device = "npu"
         if self.prompt_embeds is None and self.negative_prompt_embeds is None:
             self.prompt_embeds, self.negative_prompt_embeds = self.sora_rollout.encode_texts(
                 prompt=prompt,
@@ -133,9 +132,5 @@ class HFRollout:
                 device=device,
             )
         return self.sora_rollout.generate_test(
-            step,
-            self.prompt_embeds,
-            self.negative_prompt_embeds,
-            save_path,
-            self.src_latents.clone()
+            step, self.prompt_embeds, self.negative_prompt_embeds, save_path, self.src_latents.clone()
         )

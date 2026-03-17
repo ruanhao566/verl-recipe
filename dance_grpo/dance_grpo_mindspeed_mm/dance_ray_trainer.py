@@ -30,12 +30,12 @@ from omegaconf import OmegaConf, open_dict
 from torch.utils.data import Dataset, Sampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 from tqdm import tqdm
+
 from verl import DataProto
 from verl.single_controller.ray import RayClassWithInitArgs, RayWorkerGroup
 from verl.single_controller.ray.base import create_colocated_worker_cls
 from verl.trainer.ppo import core_algos
-from verl.trainer.ppo.ray_trainer import RayPPOTrainer
-from verl.trainer.ppo.ray_trainer import ResourcePoolManager
+from verl.trainer.ppo.ray_trainer import RayPPOTrainer, ResourcePoolManager
 from verl.trainer.ppo.utils import Role, WorkerType, need_critic, need_reference_policy, need_reward_model
 from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path
 from verl.utils.config import omega_conf_to_dataclass
@@ -46,6 +46,7 @@ from verl.utils.tracking import ValidationGenerationsLogger
 
 def get_current_context():
     import inspect
+
     """获取当前执行的上下文信息"""
     frame = inspect.currentframe()
 
@@ -54,20 +55,15 @@ def get_current_context():
     function_name = caller_frame.f_code.co_name
 
     class_name = None
-    if 'self' in caller_frame.f_locals:
-        class_name = caller_frame.f_locals['self'].__class__.__name__
-    elif 'cls' in caller_frame.f_locals:
-        class_name = caller_frame.f_locals['cls'].__name__
+    if "self" in caller_frame.f_locals:
+        class_name = caller_frame.f_locals["self"].__class__.__name__
+    elif "cls" in caller_frame.f_locals:
+        class_name = caller_frame.f_locals["cls"].__name__
 
     filename = os.path.basename(caller_frame.f_code.co_filename)
     line_no = caller_frame.f_lineno
 
-    return {
-        'class': class_name,
-        'function': function_name,
-        'file': filename,
-        'line': line_no
-    }
+    return {"class": class_name, "function": function_name, "file": filename, "line": line_no}
 
 
 class RayDANCETrainer(RayPPOTrainer):
@@ -81,20 +77,20 @@ class RayDANCETrainer(RayPPOTrainer):
     # TODO: support each role have individual ray_worker_group_cls,
     # i.e., support different backend of different role
     def __init__(
-            self,
-            config,
-            tokenizer,
-            role_worker_mapping: dict[Role, WorkerType],
-            resource_pool_manager: ResourcePoolManager,
-            ray_worker_group_cls: type[RayWorkerGroup] = RayWorkerGroup,
-            processor=None,
-            reward_fn=None,
-            val_reward_fn=None,
-            train_dataset: Optional[Dataset] = None,
-            val_dataset: Optional[Dataset] = None,
-            collate_fn=None,
-            train_sampler: Optional[Sampler] = None,
-            device_name=None,
+        self,
+        config,
+        tokenizer,
+        role_worker_mapping: dict[Role, WorkerType],
+        resource_pool_manager: ResourcePoolManager,
+        ray_worker_group_cls: type[RayWorkerGroup] = RayWorkerGroup,
+        processor=None,
+        reward_fn=None,
+        val_reward_fn=None,
+        train_dataset: Optional[Dataset] = None,
+        val_dataset: Optional[Dataset] = None,
+        collate_fn=None,
+        train_sampler: Optional[Sampler] = None,
+        device_name=None,
     ):
         """
         Initialize distributed PPO trainer with Ray backend.
@@ -145,8 +141,8 @@ class RayDANCETrainer(RayPPOTrainer):
 
         # if ref_in_actor is True, the reference policy will be actor without lora applied
         self.ref_in_actor = (
-                config.actor_rollout_ref.model.get("lora_rank", 0) > 0
-                or config.actor_rollout_ref.model.get("lora_adapter_path") is not None
+            config.actor_rollout_ref.model.get("lora_rank", 0) > 0
+            or config.actor_rollout_ref.model.get("lora_adapter_path") is not None
         )
 
         # define in-reward KL control
@@ -224,8 +220,8 @@ class RayDANCETrainer(RayPPOTrainer):
             # Only require nsight worker options when tool is nsys
             if OmegaConf.select(self.config.global_profiler, "tool") == "nsys":
                 assert (
-                        OmegaConf.select(self.config.global_profiler.global_tool_config.nsys, "worker_nsight_options")
-                        is not None
+                    OmegaConf.select(self.config.global_profiler.global_tool_config.nsys, "worker_nsight_options")
+                    is not None
                 ), "worker_nsight_options must be set when using nsys with profile_steps"
                 wg_kwargs["worker_nsight_options"] = OmegaConf.to_container(
                     OmegaConf.select(self.config.global_profiler.global_tool_config.nsys, "worker_nsight_options")
@@ -340,11 +336,11 @@ class RayDANCETrainer(RayPPOTrainer):
 
         # latest checkpointed iteration tracker (for atomic usage)
         if (
-                hasattr(self.config.actor_rollout_ref.actor.checkpoint, "async_save")
-                and self.config.actor_rollout_ref.actor.checkpoint.async_save
+            hasattr(self.config.actor_rollout_ref.actor.checkpoint, "async_save")
+            and self.config.actor_rollout_ref.actor.checkpoint.async_save
         ) or (
-                "async_save" in self.config.actor_rollout_ref.actor.checkpoint
-                and self.config.actor_rollout_ref.actor.checkpoint["async_save"]
+            "async_save" in self.config.actor_rollout_ref.actor.checkpoint
+            and self.config.actor_rollout_ref.actor.checkpoint["async_save"]
         ):
             print("skip write latest_checkpointed_iteration.txt when async_save is True")
             return
@@ -485,7 +481,7 @@ class RayDANCETrainer(RayPPOTrainer):
                 num_gen_batches += 1
                 gen_batch = self._get_gen_batch(batch)
                 gen_batch_output = gen_batch
-                with ((marked_timer("step", timing_raw))):
+                with marked_timer("step", timing_raw):
                     # generate a batch
                     with marked_timer("gen", timing_raw, "red"):
                         # Then generate sequences using DiffusionActorRolloutWorker with hidden_states
@@ -515,8 +511,10 @@ class RayDANCETrainer(RayPPOTrainer):
                         self.actor_rollout_wg.update_actor(batch)
 
                     # 每训练4步测试一个相同样本
-                    if self.config.actor_rollout_ref.rollout.online.test and self.global_steps % \
-                            self.config.actor_rollout_ref.rollout.online.step.interval == 0:
+                    if (
+                        self.config.actor_rollout_ref.rollout.online.test
+                        and self.global_steps % self.config.actor_rollout_ref.rollout.online.step.interval == 0
+                    ):
                         self.actor_rollout_wg.online_test(self.global_steps)
 
                 metrics.update(
@@ -530,7 +528,7 @@ class RayDANCETrainer(RayPPOTrainer):
                 progress_bar.update(1)
 
                 if self.config.trainer.save_freq > 0 and (
-                        is_last_step or self.global_steps % self.config.trainer.save_freq == 0
+                    is_last_step or self.global_steps % self.config.trainer.save_freq == 0
                 ):
                     with marked_timer("save_checkpoint", timing_raw, color="green"):
                         print("Saving checkpoint...")
@@ -558,8 +556,10 @@ class RayDANCETrainer(RayPPOTrainer):
         """
         # TODO: we have to make sure the batch size is divisible by the dp size
 
-        from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import create_rl_dataset, \
-            create_rl_sampler
+        from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import (
+            create_rl_dataset,
+            create_rl_sampler,
+        )
 
         if train_dataset is None:
             train_dataset = create_rl_dataset(
@@ -582,8 +582,10 @@ class RayDANCETrainer(RayPPOTrainer):
         if train_sampler is None:
             train_sampler = create_rl_sampler(self.config.data, self.train_dataset)
         if collate_fn is None:
-            from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import \
-                collate_fn as default_collate_fn
+            from recipe.dance_grpo.dance_grpo_mindspeed_mm.utils.rl_latent_dataset import (
+                collate_fn as default_collate_fn,
+            )
+
             collate_fn = default_collate_fn
 
         num_workers = self.config.data["dataloader_num_workers"]

@@ -15,7 +15,7 @@
 import html
 import math
 import os
-from typing import List, Optional, Union
+from typing import Optional
 
 import ftfy
 import imageio
@@ -31,14 +31,14 @@ do_classifier_free_guidance = False
 
 
 def flux_step(
-        model_output: torch.Tensor,
-        latents: torch.Tensor,
-        eta: float,
-        sigmas: torch.Tensor,
-        index: int,
-        prev_sample: torch.Tensor,
-        grpo: bool,
-        sde_solver: bool,
+    model_output: torch.Tensor,
+    latents: torch.Tensor,
+    eta: float,
+    sigmas: torch.Tensor,
+    index: int,
+    prev_sample: torch.Tensor,
+    grpo: bool,
+    sde_solver: bool,
 ):
     sigma = sigmas[index]
     dsigma = sigmas[index + 1] - sigma
@@ -50,8 +50,8 @@ def flux_step(
     std_dev_t = eta * math.sqrt(delta_t)
 
     if sde_solver:
-        score_estimate = -(latents - pred_original_sample * (1 - sigma)) / sigma ** 2
-        log_term = -0.5 * eta ** 2 * score_estimate
+        score_estimate = -(latents - pred_original_sample * (1 - sigma)) / sigma**2
+        log_term = -0.5 * eta**2 * score_estimate
         prev_sample_mean = prev_sample_mean + log_term * dsigma
 
     if grpo and prev_sample is None:
@@ -59,11 +59,14 @@ def flux_step(
 
     if grpo:
         # log prob of prev_sample given prev_sample_mean and std_dev_t
-        log_prob = ((
-                            -((prev_sample.detach().to(torch.float32) - prev_sample_mean.to(torch.float32)) ** 2) / (
-                            2 * (std_dev_t ** 2))
-                    )
-                    - math.log(std_dev_t) - torch.log(torch.sqrt(2 * torch.as_tensor(math.pi))))
+        log_prob = (
+            (
+                -((prev_sample.detach().to(torch.float32) - prev_sample_mean.to(torch.float32)) ** 2)
+                / (2 * (std_dev_t**2))
+            )
+            - math.log(std_dev_t)
+            - torch.log(torch.sqrt(2 * torch.as_tensor(math.pi)))
+        )
 
         # mean along all but batch dimension
         log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
@@ -72,7 +75,7 @@ def flux_step(
         return prev_sample_mean, pred_original_sample
 
 
-class ModelingSoraModelInference():
+class ModelingSoraModelInference:
     def __init__(self, actor_module: nn.Module, tokenizer: Tokenizer, scheduler: DiffusionModel):
         super().__init__()
         args = get_args()
@@ -86,10 +89,14 @@ class ModelingSoraModelInference():
         self.num_frames, self.height, self.width = args.pipeline_config.input_size
         self.vae_scale_factor_temporal = 2 ** sum(self.vae_model.config.temperal_downsample)
         self.vae_scale_factor_spatial = 2 ** len(self.vae_model.config.temperal_downsample)
-        self.vae_scale_factor_spatial = getattr(args.pipeline_config, "vae_scale_factor_spatial",
-                                                self.vae_scale_factor_spatial)
-        self.generator = None if not hasattr(args.pipeline_config, "seed") else torch.Generator().manual_seed(
-            args.pipeline_config.seed)
+        self.vae_scale_factor_spatial = getattr(
+            args.pipeline_config, "vae_scale_factor_spatial", self.vae_scale_factor_spatial
+        )
+        self.generator = (
+            None
+            if not hasattr(args.pipeline_config, "seed")
+            else torch.Generator().manual_seed(args.pipeline_config.seed)
+        )
         self.expand_timesteps = getattr(args.pipeline_config, "expand_timesteps", False)
         self.model_type = args.predictor.model_type
 
@@ -105,9 +112,10 @@ class ModelingSoraModelInference():
         return latents
 
     def get_noise_latents(self, dtype):
-        device = 'npu'
+        device = "npu"
         shape = (
-            1, self.predictor.in_dim,
+            1,
+            self.predictor.in_dim,
             (self.num_frames - 1) // self.vae_scale_factor_temporal + 1,
             self.height // self.vae_scale_factor_spatial,
             self.width // self.vae_scale_factor_spatial,
@@ -115,13 +123,8 @@ class ModelingSoraModelInference():
         return self.prepare_latents(shape, generator=self.generator, device=device, dtype=dtype)
 
     @torch.no_grad()
-    def generate(self,
-                 p_index: int,
-                 index: int,
-                 prompt_embeds,
-                 negative_prompt_embeds,
-                 latents):
-        device = 'npu'
+    def generate(self, p_index: int, index: int, prompt_embeds, negative_prompt_embeds, latents):
+        device = "npu"
         all_log_probs = []
         video_paths = []
         latents = latents.repeat(prompt_embeds.shape[0], 1, 1, 1, 1)
@@ -155,8 +158,9 @@ class ModelingSoraModelInference():
                 )
                 noise_pred = noise_uncond + curr_guidance_scale * (noise_pred - noise_uncond)
             # 计算log_prob
-            latents, pred_original, log_prob = flux_step(noise_pred, latents, 0.3, sigmas, i, prev_sample=None,
-                                                         grpo=True, sde_solver=True)
+            latents, pred_original, log_prob = flux_step(
+                noise_pred, latents, 0.3, sigmas, i, prev_sample=None, grpo=True, sde_solver=True
+            )
             all_log_probs.append(log_prob)
             all_latents.append(latents)
         # 增加一个维度进行视频拼接
@@ -164,7 +168,7 @@ class ModelingSoraModelInference():
         all_log_probs = torch.stack(all_log_probs, dim=1)
         # 分开解码视频并保存（只需要保存最后一次扩散的视频，即推理结果视频）
         for i in range(pred_original.shape[0]):
-            video_latents = pred_original[i:i + 1].to(self.vae_model.dtype)
+            video_latents = pred_original[i : i + 1].to(self.vae_model.dtype)
             latents_mean = (
                 torch.tensor(self.vae_model.config.latents_mean)
                 .view(1, self.vae_model.config.z_dim, 1, 1, 1)
@@ -176,7 +180,7 @@ class ModelingSoraModelInference():
             video_latents = video_latents / latents_std + latents_mean
             video = self.decode_latents(video_latents)[0]
             # 保存视频
-            save_path = './temp_result/'
+            save_path = "./temp_result/"
             os.makedirs(save_path, exist_ok=True)
             save_path = os.path.join(save_path, f"video_{p_index}_{index}_{i}_rank{torch.distributed.get_rank()}.mp4")
             imageio.mimwrite(save_path, video, fps=16, quality=6)
@@ -209,11 +213,8 @@ class ModelingSoraModelInference():
         return latent_model_input, timestep
 
     @torch.no_grad()
-    def generate_test(self,
-                      step: int,
-                      prompt_embeds,
-                      negative_prompt_embeds, save_path, src_latents):
-        device = 'npu'
+    def generate_test(self, step: int, prompt_embeds, negative_prompt_embeds, save_path, src_latents):
+        device = "npu"
         clip_features, vae_features = None, None
         first_frame_mask = torch.ones(src_latents.shape, dtype=torch.float32, device=device)
         model_kwargs = {
@@ -243,8 +244,9 @@ class ModelingSoraModelInference():
                 )
                 noise_pred = noise_uncond + curr_guidance_scale * (noise_pred - noise_uncond)
             # 计算log_prob
-            latents, pred_original, log_prob = flux_step(noise_pred, latents, 0.3, sigmas, i, prev_sample=None,
-                                                         grpo=True, sde_solver=True)
+            latents, pred_original, log_prob = flux_step(
+                noise_pred, latents, 0.3, sigmas, i, prev_sample=None, grpo=True, sde_solver=True
+            )
         video_latents = pred_original.to(self.vae_model.dtype)
         latents_mean = (
             torch.tensor(self.vae_model.config.latents_mean)
@@ -262,15 +264,15 @@ class ModelingSoraModelInference():
         return save_path
 
     def encode_texts(
-            self,
-            prompt: Union[str, List[str]],
-            negative_prompt: Optional[Union[str, List[str]]] = None,
-            do_classifier_free_guidance: bool = True,
-            prompt_embeds: Optional[torch.Tensor] = None,
-            negative_prompt_embeds: Optional[torch.Tensor] = None,
-            max_sequence_length: int = 226,
-            device: Optional[torch.device] = None,
-            dtype: Optional[torch.dtype] = None,
+        self,
+        prompt: str | list[str],
+        negative_prompt: Optional[str | list[str]] = None,
+        do_classifier_free_guidance: bool = True,
+        prompt_embeds: Optional[torch.Tensor] = None,
+        negative_prompt_embeds: Optional[torch.Tensor] = None,
+        max_sequence_length: int = 226,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
     ):
         prompt = [prompt] if isinstance(prompt, str) else prompt
         if prompt is not None:
@@ -312,7 +314,6 @@ class ModelingSoraModelInference():
         return prompt_embeds, negative_prompt_embeds
 
     def prompt_preprocess(self, prompt):
-
         def basic_clean(text):
             text = ftfy.fix_text(text)
             text = html.unescape(html.unescape(text))
@@ -327,11 +328,11 @@ class ModelingSoraModelInference():
         return whitespace_clean(basic_clean(prompt))
 
     def _get_prompt_embeds(
-            self,
-            prompt: Union[str, List[str]] = None,
-            max_sequence_length: int = 226,
-            device: Optional[torch.device] = None,
-            dtype: Optional[torch.dtype] = None,
+        self,
+        prompt: str | list[str] = None,
+        max_sequence_length: int = 226,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
     ):
         prompt = [self.prompt_preprocess(u) for u in prompt]
         batch_size = len(prompt)
@@ -362,7 +363,7 @@ class ModelingSoraModelInference():
         return prompt_embeds.to(self.predictor.dtype)
 
 
-class ModelingSoraModelTrain():
+class ModelingSoraModelTrain:
     def __init__(self, actor_module: nn.Module, tokenizer: Tokenizer, scheduler: DiffusionModel):
         super().__init__()
         self.sora_model = actor_module
@@ -374,14 +375,14 @@ class ModelingSoraModelTrain():
         self.expand_timesteps = getattr(get_args().mm.model.pipeline_config, "expand_timesteps", False)
 
     def train(
-            self,
-            latents,
-            pre_latents,
-            idx,
-            prompt_embeds,
-            negative_prompt_embeds,
+        self,
+        latents,
+        pre_latents,
+        idx,
+        prompt_embeds,
+        negative_prompt_embeds,
     ):
-        device = 'npu'
+        device = "npu"
         timesteps = self.scheduler.timesteps
         sigmas = self.scheduler.sigmas
         t = timesteps[idx]
@@ -397,25 +398,17 @@ class ModelingSoraModelTrain():
             timestep = temp_ts.unsqueeze(0).expand(latents.shape[0], -1).to(device=latents.device).float()
         else:
             timestep = t.expand(latents.shape[0]).to(device=latents.device).float()
-        pred = self.sora_model(
-            latents,
-            timestep=timestep,
-            prompt=prompt_embeds,
-            video_mask=None,
-            prompt_mask=None
-        )
+        pred = self.sora_model(latents, timestep=timestep, prompt=prompt_embeds, video_mask=None, prompt_mask=None)
         if do_classifier_free_guidance:
-            uncond_states = negative_prompt_embeds if negative_prompt_embeds is not None else torch.zeros_like(
-                prompt_embeds)
+            uncond_states = (
+                negative_prompt_embeds if negative_prompt_embeds is not None else torch.zeros_like(prompt_embeds)
+            )
             pred_u = self.sora_model(
-                latents,
-                timestep=timestep,
-                prompt=uncond_states,
-                video_mask=None,
-                prompt_mask=None
+                latents, timestep=timestep, prompt=uncond_states, video_mask=None, prompt_mask=None
             )
             pred = pred_u + curr_guidance_scale * (pred - pred_u)
 
-        latents, pred_original, log_prob = flux_step(pred, latents, 0.3, sigmas, idx, prev_sample=pre_latents,
-                                                     grpo=True, sde_solver=True)
+        latents, pred_original, log_prob = flux_step(
+            pred, latents, 0.3, sigmas, idx, prev_sample=pre_latents, grpo=True, sde_solver=True
+        )
         return log_prob
